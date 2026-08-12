@@ -43,7 +43,7 @@ function switchAuthTab(t) {
 function routeToDashboard() {
     if (currentUser.role === 'admin') {
         updateAdminLocs();
-        loadExistingMoviesToDatalist();
+        loadAdminMoviesDropdown();
         switchView('admin-view');
     } else {
         loadAppMovies();
@@ -93,7 +93,7 @@ regPass.addEventListener('input', () => {
             el.classList.remove('invalid');
         } else { 
             el.classList.remove('valid'); 
-            if(hasAttemptedSubmit) el.classList.add('invalid'); // Show red X dynamically if they tried to submit
+            if(hasAttemptedSubmit) el.classList.add('invalid');
         }
     }
 });
@@ -102,13 +102,12 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
     e.preventDefault();
     hasAttemptedSubmit = true;
     
-    // Evaluate rules on Submit
     const val = regPass.value;
     let allValid = true;
     for (let k in rules) {
         const el = document.getElementById(`rule-${k}`);
         if (!rules[k](val)) { 
-            el.classList.add('invalid'); // Slap red X on failed rules
+            el.classList.add('invalid'); 
             allValid = false; 
         } else {
             el.classList.add('valid'); 
@@ -132,7 +131,6 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
         if (!res.ok) throw new Error(await res.text());
         showToast("Account Created! Please Sign in."); 
         
-        // Reset form completely
         regEmail.value = ''; 
         regPass.value = ''; 
         hasAttemptedSubmit = false;
@@ -143,7 +141,7 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
     hideLoader();
 });
 
-// ADMIN LOGIC
+// ================= ADMIN LOGIC & SMART DROPDOWN =================
 const qLocs = ["Labim Mall", "Bhatbhateni, Radhe Radhe", "Civil Mall", "City Center"]; 
 const oLocs = ["Eyeplex Mall, Baneshwor", "Kalimati Trade Center, Kalimati"];
 
@@ -167,25 +165,60 @@ function updateAdminTimings() {
     document.getElementById('admin-time').innerHTML = times.map(t => `<option>${t}</option>`).join('');
 }
 
-async function loadExistingMoviesToDatalist() {
+async function loadAdminMoviesDropdown() {
     try {
         const res = await fetch(`${API_BASE}/api/movies`); 
         const data = await res.json(); 
         const allData = Object.values(data || {});
         const uniqueTitles = [...new Set(allData.map(m => m.title))];
-        document.getElementById('existing-movies').innerHTML = uniqueTitles.map(t => `<option value="${t}">`).join('');
+        
+        let html = '<option value="" disabled selected>-- Select a Movie --</option>';
+        html += uniqueTitles.map(t => `<option value="${t}">${t}</option>`).join('');
+        html += '<option value="__NEW__" style="color:var(--primary); font-weight:bold;">➕ Add New Movie...</option>';
+        
+        document.getElementById('admin-title-select').innerHTML = html;
+        toggleNewMovieInput(); // Reset view
     } catch(e) {}
+}
+
+function toggleNewMovieInput() {
+    const select = document.getElementById('admin-title-select');
+    const inputGroup = document.getElementById('admin-title-input-group');
+    const input = document.getElementById('admin-title-input');
+
+    if (select.value === '__NEW__') {
+        inputGroup.classList.remove('hidden');
+        input.required = true;
+        inputGroup.style.animation = "fadeUp 0.3s forwards";
+    } else {
+        inputGroup.classList.add('hidden');
+        input.required = false;
+        input.value = '';
+    }
 }
 
 document.getElementById('admin-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     showLoader();
-    const m = { title: document.getElementById('admin-title').value, time: document.getElementById('admin-time').value, hall: document.getElementById('admin-hall').value, location: document.getElementById('admin-loc').value, seats: parseInt(document.getElementById('admin-seats').value), cost: parseInt(document.getElementById('admin-cost').value) };
+    
+    // Determine which title to use
+    const selectVal = document.getElementById('admin-title-select').value;
+    const finalTitle = selectVal === '__NEW__' ? document.getElementById('admin-title-input').value : selectVal;
+    
+    const m = { 
+        title: finalTitle, 
+        time: document.getElementById('admin-time').value, 
+        hall: document.getElementById('admin-hall').value, 
+        location: document.getElementById('admin-loc').value, 
+        seats: parseInt(document.getElementById('admin-seats').value), 
+        cost: parseInt(document.getElementById('admin-cost').value) 
+    };
+    
     try {
         await fetch(`${API_BASE}/api/movies`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(m) });
         showToast("Movie Deployed to Box Office!"); 
-        document.getElementById('admin-title').value = '';
-        loadExistingMoviesToDatalist(); // refresh list
+        document.getElementById('admin-title-input').value = '';
+        loadAdminMoviesDropdown(); // refresh list
     } catch(err) { showToast("Deployment failed.", true); }
     hideLoader();
 });
@@ -204,7 +237,7 @@ document.getElementById('admin-validate-form').addEventListener('submit', async 
     hideLoader();
 });
 
-// USER LOGIC
+// ================= USER LOGIC =================
 async function loadAppMovies() {
     showLoader();
     try {
