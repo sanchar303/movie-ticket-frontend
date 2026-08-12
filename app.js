@@ -74,33 +74,71 @@ function logout() {
     showToast("Logged out successfully."); switchView('auth-view');
 }
 
-// REGISTRATION
-const regEmail = document.getElementById('reg-email'); const regPass = document.getElementById('reg-pass'); const regBtn = document.getElementById('reg-btn');
-const rules = { len: v => v.length > 8, up: v => /[A-Z]/.test(v), low: v => /[a-z]/.test(v), num: v => /\d/.test(v), spec: v => /[@$!%*?&\-#^]/.test(v) };
+// ================= REGISTRATION & PASSWORD UI =================
+let hasAttemptedSubmit = false;
+const regEmail = document.getElementById('reg-email'); 
+const regPass = document.getElementById('reg-pass'); 
+const rules = { len: v => v.length >= 8, up: v => /[A-Z]/.test(v), low: v => /[a-z]/.test(v), num: v => /\d/.test(v), spec: v => /[@$!%*?&\-#^]/.test(v) };
 
 regEmail.addEventListener('blur', () => {
-    document.getElementById('email-error').classList.toggle('hidden', /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail.value) || regEmail.value.length === 0); checkRegForm();
+    document.getElementById('email-error').classList.toggle('hidden', /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail.value) || regEmail.value.length === 0); 
 });
 
 regPass.addEventListener('input', () => {
     const val = regPass.value;
     for (let k in rules) {
         const el = document.getElementById(`rule-${k}`);
-        if (rules[k](val)) { el.textContent = "✅" + el.textContent.substring(1); el.classList.add('valid'); } 
-        else { el.textContent = "❌" + el.textContent.substring(1); el.classList.remove('valid'); }
+        if (rules[k](val)) { 
+            el.classList.add('valid'); 
+            el.classList.remove('invalid');
+        } else { 
+            el.classList.remove('valid'); 
+            if(hasAttemptedSubmit) el.classList.add('invalid'); // Show red X dynamically if they tried to submit
+        }
     }
-    checkRegForm();
 });
-
-function checkRegForm() { regBtn.disabled = !(Object.values(rules).every(r => r(regPass.value)) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail.value)); }
 
 document.getElementById('register-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    hasAttemptedSubmit = true;
+    
+    // Evaluate rules on Submit
+    const val = regPass.value;
+    let allValid = true;
+    for (let k in rules) {
+        const el = document.getElementById(`rule-${k}`);
+        if (!rules[k](val)) { 
+            el.classList.add('invalid'); // Slap red X on failed rules
+            allValid = false; 
+        } else {
+            el.classList.add('valid'); 
+        }
+    }
+    
+    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail.value);
+    if(!emailValid) {
+        document.getElementById('email-error').classList.remove('hidden');
+        allValid = false;
+    }
+
+    if(!allValid) {
+        showToast("Please fulfill all password requirements.", true);
+        return;
+    }
+
     showLoader();
     try {
         const res = await fetch(`${API_BASE}/api/register`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ email: regEmail.value, password: regPass.value }) });
         if (!res.ok) throw new Error(await res.text());
-        showToast("Account Created! Please Sign in."); regEmail.value = ''; regPass.value = ''; switchAuthTab('login');
+        showToast("Account Created! Please Sign in."); 
+        
+        // Reset form completely
+        regEmail.value = ''; 
+        regPass.value = ''; 
+        hasAttemptedSubmit = false;
+        document.querySelectorAll('.rule-item').forEach(el => el.classList.remove('valid', 'invalid'));
+        
+        switchAuthTab('login');
     } catch (err) { showToast(err.message, true); }
     hideLoader();
 });
