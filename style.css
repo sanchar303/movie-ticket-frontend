@@ -1,5 +1,4 @@
 :root {
-    --bg-gradient: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
     --glass-bg: rgba(255, 255, 255, 0.07);
     --glass-border: rgba(255, 255, 255, 0.2);
     --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
@@ -12,8 +11,15 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
 
+/* --- STOP PULL TO REFRESH & ADD ANIMATED GRADIENT --- */
+html, body {
+    overscroll-behavior-y: none;
+}
+
 body {
-    background: var(--bg-gradient);
+    background: linear-gradient(-45deg, #0f0c29, #302b63, #24243e, #141124);
+    background-size: 400% 400%;
+    animation: gradientBG 15s ease infinite;
     color: var(--text);
     min-height: 100vh;
     display: flex;
@@ -24,6 +30,12 @@ body {
     -webkit-user-drag: none;
     touch-action: pan-y;
     padding: 10px;
+}
+
+@keyframes gradientBG {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
 }
 
 /* --- GLASS & 3D UTILITIES --- */
@@ -46,7 +58,32 @@ body {
 }
 .p-20 { padding: 20px; }
 
-/* --- BUTTONS --- */
+/* --- CUSTOM CAPSULE AUTH TABS --- */
+.tab-header { 
+    display: flex; 
+    background: rgba(0,0,0,0.4); 
+    border-radius: 50px; 
+    padding: 6px; 
+    margin-bottom: 25px; 
+    box-shadow: inset 0 4px 8px rgba(0,0,0,0.6); 
+    position: relative;
+}
+.tab-btn { 
+    flex: 1; 
+    padding: 12px; 
+    cursor: pointer; 
+    font-weight: 700; 
+    border-radius: 45px;
+    transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); 
+    color: #888; 
+}
+.tab-btn.active { 
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark)); 
+    color: #000; 
+    box-shadow: 0 4px 15px rgba(0,230,118,0.5); 
+}
+
+/* --- BUTTONS WITH INSET HOVER --- */
 .custom-btn {
     display: flex;
     justify-content: center;
@@ -59,11 +96,17 @@ body {
     text-transform: uppercase;
     cursor: pointer;
     border: none;
-    transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
-    box-shadow: inset 0 -3px 0 rgba(0,0,0,0.3), 0 4px 10px rgba(0,0,0,0.3);
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
 }
-.custom-btn:hover { transform: translateY(-3px) scale(1.02); }
-.custom-btn:active { transform: translateY(2px); box-shadow: inset 0 3px 5px rgba(0,0,0,0.4); }
+.custom-btn:hover { 
+    transform: translateY(-2px); 
+    box-shadow: inset 0 0 15px rgba(255,255,255,0.3), 0 6px 15px rgba(0,0,0,0.5);
+}
+.custom-btn:active { 
+    transform: translateY(2px); 
+    box-shadow: inset 0 6px 12px rgba(0,0,0,0.7); 
+}
 .primary-btn { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: #000; }
 .danger-btn { background: linear-gradient(135deg, var(--danger), #d50000); color: #fff; }
 .action-btn { background: linear-gradient(135deg, #29b6f6, #0288d1); color: #fff; }
@@ -81,9 +124,6 @@ body {
 .auth-box { max-width: 400px; margin: 40px auto; padding: 30px; text-align: center; }
 .brand { margin-bottom: 25px; }
 .logo { width: 70px; filter: drop-shadow(0 4px 6px rgba(0,230,118,0.5)); }
-.tab-header { display: flex; background: rgba(0,0,0,0.3); border-radius: 14px; margin-bottom: 25px; overflow: hidden; }
-.tab-btn { flex: 1; padding: 12px; cursor: pointer; font-weight: 600; transition: 0.3s; color: #888; }
-.tab-btn.active { background: var(--glass-bg); color: #fff; box-shadow: var(--inset-shadow); }
 .auth-form { display: none; }
 .auth-form.active { display: block; animation: fadeUp 0.3s forwards; }
 
@@ -141,13 +181,9 @@ body {
 .password-rules { text-align: left; font-size: 0.75rem; margin-bottom: 15px; color: #888; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .rule-item { display: flex; align-items: center; gap: 6px; transition: color 0.3s; }
 .rule-icon { width: 14px; height: 14px; border: 2px solid #666; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 0.65rem; transition: all 0.3s; }
-
-/* State: Valid Requirement */
 .rule-item.valid { color: var(--primary); }
 .rule-item.valid .rule-icon { border-color: var(--primary); background: var(--primary); }
 .rule-item.valid .rule-icon::after { content: '✔'; color: #000; font-weight: 800; }
-
-/* State: Invalid Requirement (Only shows after clicking submit) */
 .rule-item.invalid { color: var(--danger); }
 .rule-item.invalid .rule-icon { border-color: var(--danger); background: rgba(255, 23, 68, 0.2); }
 .rule-item.invalid .rule-icon::after { content: '✖'; color: var(--danger); font-weight: 800; }
@@ -162,10 +198,13 @@ body {
 #toast-container { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 10000; width: 90%; max-width: 350px; pointer-events: none; }
 .toast {
     padding: 14px 20px; font-weight: 600; text-align: center; color: var(--primary);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 2px 5px rgba(255,255,255,0.1);
+    background: rgba(15,12,41,0.95);
+    border: 1px solid var(--primary);
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8), inset 0 2px 5px rgba(255,255,255,0.1);
     animation: dropDown 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
 }
-.toast.error { color: var(--danger); }
+.toast.error { color: var(--danger); border-color: var(--danger); }
 .toast.fade-out { animation: pullUp 0.3s forwards; }
 @keyframes dropDown { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 @keyframes pullUp { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-50px); opacity: 0; } }
@@ -185,8 +224,8 @@ body {
 @keyframes scaleUp { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 /* --- REFRESH BUTTON --- */
-.refresh-btn { display: flex; justify-content: center; align-items: center; position: fixed; bottom: 20px; right: 20px; width: 45px; height: 45px; border-radius: 50%; font-size: 1.2rem; font-weight: bold; cursor: pointer; box-shadow: var(--glass-shadow); transition: 0.3s; z-index: 990; }
-.refresh-btn:hover { transform: rotate(180deg) scale(1.1); color: var(--primary); }
+.refresh-btn { display: flex; justify-content: center; align-items: center; position: fixed; bottom: 20px; right: 20px; width: 45px; height: 45px; border-radius: 50%; font-size: 1.2rem; font-weight: bold; cursor: pointer; box-shadow: var(--glass-shadow); transition: 0.3s; z-index: 990; background: rgba(0,0,0,0.5); }
+.refresh-btn:hover { transform: rotate(180deg) scale(1.1); color: var(--primary); box-shadow: 0 0 15px rgba(0,230,118,0.5); }
 
 /* --- CUSTOM DROPDOWN ARROWS --- */
 .select-group select {
