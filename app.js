@@ -18,7 +18,7 @@ function hideLoader() { document.getElementById('global-loader').classList.add('
 
 function showToast(msg, isErr = false) {
     const container = document.getElementById('toast-container');
-    container.innerHTML = ''; // Enforce strict single toast
+    container.innerHTML = ''; 
     const t = document.createElement('div');
     t.className = `toast ${isErr ? 'error' : ''}`;
     t.textContent = msg;
@@ -63,7 +63,7 @@ function switchView(id) {
     document.getElementById(id).classList.add('active'); 
 }
 function switchAuthTab(t) {
-    clearAuthForms(); // Force inputs to empty on tab switch
+    clearAuthForms(); 
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); 
     document.getElementById(`tab-${t}`).classList.add('active');
     document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active')); 
@@ -104,6 +104,15 @@ function logout() {
     clearAuthForms();
     showToast("Logged out successfully."); 
     switchView('auth-view');
+}
+
+// Anti-Hack Tripwire
+function handleApiError(res) {
+    if (res.status === 403) {
+        logout();
+        showToast("SECURITY ALERT: Unauthorized Admin Access Attempt Blocked.", true);
+        throw new Error("Unauthorized");
+    }
 }
 
 // ================= REGISTRATION & PASSWORD UI =================
@@ -191,7 +200,6 @@ function updateAdminLocs() {
     updateAdminTimings();
 }
 
-// SMART FILTER: Check occupied times in database
 function getOccupiedTimes(hall, loc) {
     const occupied = [];
     for (const [id, m] of Object.entries(allMoviesData)) {
@@ -230,7 +238,6 @@ function updateAdminTimings() {
         submitBtn.disabled = false;
         submitBtn.classList.remove('disabled-btn');
         
-        // If editing, try to re-select original time
         if (editingMovieId && allMoviesData[editingMovieId]) {
             const origTime = allMoviesData[editingMovieId].time;
             if (availableTimes.includes(origTime)) {
@@ -297,7 +304,6 @@ function editMovie(id) {
     document.getElementById('admin-title-input').value = m.title;
     document.getElementById('admin-hall').value = m.hall;
     
-    // Trigger locs & times update so the dropdowns populate accurately
     updateAdminLocs();
     document.getElementById('admin-loc').value = m.location;
     updateAdminTimings();
@@ -334,12 +340,16 @@ function deleteMovie(id) {
     showConfirmModal("Erase this deployment permanently? All seats and timings will be wiped.", async () => {
         showLoader();
         try {
-            const res = await fetch(`${API_BASE}/api/movies?id=${id}`, { method: 'DELETE' });
+            const res = await fetch(`${API_BASE}/api/movies?id=${id}`, { 
+                method: 'DELETE', 
+                headers: { 'Admin-Token': currentUser?.token || '' } 
+            });
+            handleApiError(res);
             if(!res.ok) throw new Error(await res.text());
             showToast("Deployment deleted.");
             resetAdminForm();
             await refreshAdminData();
-        } catch(e) { showToast("Failed to delete", true); }
+        } catch(e) { if(e.message !== "Unauthorized") showToast("Failed to delete", true); }
         hideLoader();
     });
 }
@@ -360,17 +370,21 @@ document.getElementById('admin-form').addEventListener('submit', async (e) => {
         cost: parseInt(document.getElementById('admin-cost').value) 
     };
     
+    const adminHeaders = { 'Content-Type': 'application/json', 'Admin-Token': currentUser?.token || '' };
+    
     try {
         if(editingMovieId) {
-            await fetch(`${API_BASE}/api/movies?id=${editingMovieId}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(m) });
+            const res = await fetch(`${API_BASE}/api/movies?id=${editingMovieId}`, { method: 'PUT', headers: adminHeaders, body: JSON.stringify(m) });
+            handleApiError(res);
             showToast("Movie Updated Successfully!"); 
         } else {
-            await fetch(`${API_BASE}/api/movies`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(m) });
+            const res = await fetch(`${API_BASE}/api/movies`, { method: 'POST', headers: adminHeaders, body: JSON.stringify(m) });
+            handleApiError(res);
             showToast("Movie Deployed to Box Office!"); 
         }
         resetAdminForm();
         await refreshAdminData();
-    } catch(err) { showToast("Deployment failed.", true); }
+    } catch(err) { if(err.message !== "Unauthorized") showToast("Deployment failed.", true); }
     hideLoader();
 });
 
@@ -379,12 +393,17 @@ document.getElementById('admin-validate-form').addEventListener('submit', async 
     showLoader();
     const code = document.getElementById('admin-ticket-code').value.toUpperCase();
     try {
-        const res = await fetch(`${API_BASE}/api/validate-ticket`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ code }) });
+        const res = await fetch(`${API_BASE}/api/validate-ticket`, { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json', 'Admin-Token': currentUser?.token || '' }, 
+            body: JSON.stringify({ code }) 
+        });
+        handleApiError(res);
         if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
         showToast(`${data.message} | ${data.movie} | Tickets: ${data.tickets}`);
         document.getElementById('admin-ticket-code').value = '';
-    } catch (err) { showToast(err.message, true); }
+    } catch (err) { if(err.message !== "Unauthorized") showToast(err.message, true); }
     hideLoader();
 });
 
