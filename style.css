@@ -137,11 +137,24 @@ body {
 .disabled-pay { opacity: 0.5; cursor: not-allowed; }
 .pay-radio input { margin-right: 10px; accent-color: var(--primary); }
 
+/* --- PASSWORD UI RULES --- */
+.password-rules { text-align: left; font-size: 0.75rem; margin-bottom: 15px; color: #888; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rule-item { display: flex; align-items: center; gap: 6px; transition: color 0.3s; }
+.rule-icon { width: 14px; height: 14px; border: 2px solid #666; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 0.65rem; transition: all 0.3s; }
+
+/* State: Valid Requirement */
+.rule-item.valid { color: var(--primary); }
+.rule-item.valid .rule-icon { border-color: var(--primary); background: var(--primary); }
+.rule-item.valid .rule-icon::after { content: '✔'; color: #000; font-weight: 800; }
+
+/* State: Invalid Requirement (Only shows after clicking submit) */
+.rule-item.invalid { color: var(--danger); }
+.rule-item.invalid .rule-icon { border-color: var(--danger); background: rgba(255, 23, 68, 0.2); }
+.rule-item.invalid .rule-icon::after { content: '✖'; color: var(--danger); font-weight: 800; }
+
 /* --- MISC & UTILS --- */
 .price-display { display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 0.9rem; }
 .highlight-text { color: var(--primary); font-size: 1.1rem; }
-.password-rules { text-align: left; font-size: 0.75rem; margin-bottom: 15px; color: #888; display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-.password-rules div.valid { color: var(--primary); }
 .error-msg { color: var(--danger); font-size: 0.75rem; position: absolute; right: 10px; top: 18px; }
 .hidden { display: none !important; }
 
