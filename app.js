@@ -71,14 +71,12 @@ function switchAuthTab(t) {
 }
 
 // ROUTING
-function routeToDashboard() {
+async function routeToDashboard() {
     if (currentUser.role === 'admin') {
-        updateAdminLocs();
-        loadAdminMoviesDropdown();
-        loadAdminDeployments();
+        await refreshAdminData();
         switchView('admin-view');
     } else {
-        loadAppMovies();
+        await loadAppMovies();
         loadUserBookings();
         switchView('user-view');
     }
@@ -174,40 +172,84 @@ let editingMovieId = null;
 const qLocs = ["Labim Mall", "Bhatbhateni, Radhe Radhe", "Civil Mall", "City Center"]; 
 const oLocs = ["Eyeplex Mall, Baneshwor", "Kalimati Trade Center, Kalimati"];
 
+async function refreshAdminData() {
+    showLoader();
+    try {
+        const res = await fetch(`${API_BASE}/api/movies`); 
+        allMoviesData = await res.json() || {}; 
+        
+        renderAdminMoviesDropdown();
+        renderAdminDeployments();
+        updateAdminLocs(); 
+    } catch(e) {}
+    hideLoader();
+}
+
 function updateAdminLocs() { 
     const isQFX = document.getElementById('admin-hall').value === 'QFX';
     document.getElementById('admin-loc').innerHTML = (isQFX ? qLocs : oLocs).map(l => `<option>${l}</option>`).join(''); 
     updateAdminTimings();
 }
 
-function updateAdminTimings() {
-    const loc = document.getElementById('admin-loc').value;
-    let times = [];
-    
-    if (loc === "Eyeplex Mall, Baneshwor") {
-        times = ["09:00 AM", "11:45 AM", "01:45 PM", "02:45 PM", "04:30 PM", "05:30 PM", "08:15 PM"];
-    } else if (loc === "Kalimati Trade Center, Kalimati") {
-        times = ["10:00 AM", "12:30 PM", "03:00 PM", "05:45 PM", "08:30 PM"];
-    } else {
-        times = ["08:30 AM", "11:15 AM", "01:30 PM", "04:15 PM", "06:45 PM", "09:00 PM"];
+// SMART FILTER: Check occupied times in database
+function getOccupiedTimes(hall, loc) {
+    const occupied = [];
+    for (const [id, m] of Object.entries(allMoviesData)) {
+        if (id !== editingMovieId && m.hall === hall && m.location === loc) {
+            occupied.push(m.time);
+        }
     }
-    document.getElementById('admin-time').innerHTML = times.map(t => `<option>${t}</option>`).join('');
+    return occupied;
 }
 
-async function loadAdminMoviesDropdown() {
-    try {
-        const res = await fetch(`${API_BASE}/api/movies`); 
-        allMoviesData = await res.json() || {}; 
-        const moviesArr = Object.values(allMoviesData);
-        const uniqueTitles = [...new Set(moviesArr.map(m => m.title))];
+function updateAdminTimings() {
+    const hall = document.getElementById('admin-hall').value;
+    const loc = document.getElementById('admin-loc').value;
+    let baseTimes = [];
+    
+    if (loc === "Eyeplex Mall, Baneshwor") {
+        baseTimes = ["09:00 AM", "11:45 AM", "01:45 PM", "02:45 PM", "04:30 PM", "05:30 PM", "08:15 PM"];
+    } else if (loc === "Kalimati Trade Center, Kalimati") {
+        baseTimes = ["10:00 AM", "12:30 PM", "03:00 PM", "05:45 PM", "08:30 PM"];
+    } else {
+        baseTimes = ["08:30 AM", "11:15 AM", "01:30 PM", "04:15 PM", "06:45 PM", "09:00 PM"];
+    }
+
+    const occupiedTimes = getOccupiedTimes(hall, loc);
+    const availableTimes = baseTimes.filter(t => !occupiedTimes.includes(t));
+
+    const timeSelect = document.getElementById('admin-time');
+    const submitBtn = document.getElementById('admin-submit-btn');
+
+    if (availableTimes.length === 0) {
+        timeSelect.innerHTML = '<option value="" disabled selected>No slots available</option>';
+        submitBtn.disabled = true;
+        submitBtn.classList.add('disabled-btn');
+    } else {
+        timeSelect.innerHTML = availableTimes.map(t => `<option value="${t}">${t}</option>`).join('');
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('disabled-btn');
         
-        let html = '<option value="" disabled selected>-- Select a Movie --</option>';
-        html += uniqueTitles.map(t => `<option value="${t}">${t}</option>`).join('');
-        html += '<option value="__NEW__" style="color:var(--primary); font-weight:bold;">➕ Add New Movie...</option>';
-        
-        document.getElementById('admin-title-select').innerHTML = html;
-        toggleNewMovieInput(); 
-    } catch(e) {}
+        // If editing, try to re-select original time
+        if (editingMovieId && allMoviesData[editingMovieId]) {
+            const origTime = allMoviesData[editingMovieId].time;
+            if (availableTimes.includes(origTime)) {
+                timeSelect.value = origTime;
+            }
+        }
+    }
+}
+
+function renderAdminMoviesDropdown() {
+    const moviesArr = Object.values(allMoviesData);
+    const uniqueTitles = [...new Set(moviesArr.map(m => m.title))];
+    
+    let html = '<option value="" disabled selected>-- Select a Movie --</option>';
+    html += uniqueTitles.map(t => `<option value="${t}">${t}</option>`).join('');
+    html += '<option value="__NEW__" style="color:var(--primary); font-weight:bold;">➕ Add New Movie...</option>';
+    
+    document.getElementById('admin-title-select').innerHTML = html;
+    toggleNewMovieInput(); 
 }
 
 function toggleNewMovieInput() {
@@ -227,9 +269,7 @@ function toggleNewMovieInput() {
 }
 
 // --- ADMIN EDIT / DELETE ---
-async function loadAdminDeployments() {
-    const res = await fetch(`${API_BASE}/api/movies`);
-    allMoviesData = await res.json() || {};
+function renderAdminDeployments() {
     const list = document.getElementById('admin-movies-list');
     
     list.innerHTML = Object.keys(allMoviesData).length ? Object.entries(allMoviesData).reverse().map(([id, m]) => `
@@ -256,10 +296,13 @@ function editMovie(id) {
     toggleNewMovieInput();
     document.getElementById('admin-title-input').value = m.title;
     document.getElementById('admin-hall').value = m.hall;
+    
+    // Trigger locs & times update so the dropdowns populate accurately
     updateAdminLocs();
     document.getElementById('admin-loc').value = m.location;
     updateAdminTimings();
     document.getElementById('admin-time').value = m.time;
+    
     document.getElementById('admin-seats').value = m.seats;
     document.getElementById('admin-cost').value = m.cost;
     
@@ -295,8 +338,7 @@ function deleteMovie(id) {
             if(!res.ok) throw new Error(await res.text());
             showToast("Deployment deleted.");
             resetAdminForm();
-            loadAdminMoviesDropdown();
-            loadAdminDeployments();
+            await refreshAdminData();
         } catch(e) { showToast("Failed to delete", true); }
         hideLoader();
     });
@@ -327,8 +369,7 @@ document.getElementById('admin-form').addEventListener('submit', async (e) => {
             showToast("Movie Deployed to Box Office!"); 
         }
         resetAdminForm();
-        loadAdminMoviesDropdown();
-        loadAdminDeployments();
+        await refreshAdminData();
     } catch(err) { showToast("Deployment failed.", true); }
     hideLoader();
 });
