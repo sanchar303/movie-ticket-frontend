@@ -12,7 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-// UI UTILS
+// ================= UI UTILS & MODALS =================
 function showLoader() { document.getElementById('global-loader').classList.remove('hidden'); }
 function hideLoader() { document.getElementById('global-loader').classList.add('hidden'); }
 
@@ -28,6 +28,26 @@ function showToast(msg, isErr = false) {
         setTimeout(() => t.remove(), 300);
     }, 3000);
 }
+
+// Custom Glassy Confirmation Modal
+let confirmCallback = null;
+
+function showConfirmModal(message, callback) {
+    document.getElementById('confirm-message').innerText = message;
+    confirmCallback = callback;
+    document.getElementById('confirm-modal').classList.remove('hidden');
+}
+
+function closeConfirmModal() {
+    document.getElementById('confirm-modal').classList.add('hidden');
+    confirmCallback = null;
+}
+
+document.getElementById('confirm-yes-btn').addEventListener('click', () => {
+    if (confirmCallback) confirmCallback();
+    closeConfirmModal();
+});
+
 
 function clearAuthForms() {
     document.getElementById('log-email').value = '';
@@ -267,18 +287,19 @@ function resetAdminForm() {
     document.getElementById('admin-cancel-btn').classList.add('hidden');
 }
 
-async function deleteMovie(id) {
-    if(!confirm("Erase this deployment permanently? All seats and timings will be wiped.")) return;
-    showLoader();
-    try {
-        const res = await fetch(`${API_BASE}/api/movies?id=${id}`, { method: 'DELETE' });
-        if(!res.ok) throw new Error(await res.text());
-        showToast("Deployment deleted.");
-        resetAdminForm();
-        loadAdminMoviesDropdown();
-        loadAdminDeployments();
-    } catch(e) { showToast("Failed to delete", true); }
-    hideLoader();
+function deleteMovie(id) {
+    showConfirmModal("Erase this deployment permanently? All seats and timings will be wiped.", async () => {
+        showLoader();
+        try {
+            const res = await fetch(`${API_BASE}/api/movies?id=${id}`, { method: 'DELETE' });
+            if(!res.ok) throw new Error(await res.text());
+            showToast("Deployment deleted.");
+            resetAdminForm();
+            loadAdminMoviesDropdown();
+            loadAdminDeployments();
+        } catch(e) { showToast("Failed to delete", true); }
+        hideLoader();
+    });
 }
 
 document.getElementById('admin-form').addEventListener('submit', async (e) => {
@@ -454,19 +475,20 @@ async function loadUserBookings() {
     } catch(e) {}
 }
 
-async function deleteTicket(code) {
-    if(!confirm("Erase ticket permanently? This cannot be undone.")) return;
-    showLoader();
-    try {
-        const res = await fetch(`${API_BASE}/api/bookings?email=${currentUser.email}&code=${code}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error(await res.text());
-        showToast("Ticket permanently deleted.");
-        loadAppMovies(); 
-        loadUserBookings(); 
-    } catch (err) {
-        showToast("Failed to delete ticket.", true);
-    }
-    hideLoader();
+function deleteTicket(code) {
+    showConfirmModal("Erase ticket permanently? This cannot be undone.", async () => {
+        showLoader();
+        try {
+            const res = await fetch(`${API_BASE}/api/bookings?email=${currentUser.email}&code=${code}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error(await res.text());
+            showToast("Ticket permanently deleted.");
+            loadAppMovies(); 
+            loadUserBookings(); 
+        } catch (err) {
+            showToast("Failed to delete ticket.", true);
+        }
+        hideLoader();
+    });
 }
 
 // ================= QR CODE & CANVAS LOGIC =================
