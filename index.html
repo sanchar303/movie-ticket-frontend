@@ -84,10 +84,16 @@
                 <div class="glass-panel 3d-box p-20">
                     <h3>🎬 Publish Show</h3>
                     <form id="admin-form">
-                        <div class="input-group">
-                            <input type="text" id="admin-title" list="existing-movies" required placeholder=" ">
-                            <label>Movie Title</label>
-                            <datalist id="existing-movies"></datalist>
+                        
+                        <!-- NEW SMART ADMIN DROPDOWN UI -->
+                        <div class="input-group select-group">
+                            <select id="admin-title-select" onchange="toggleNewMovieInput()" required>
+                                <option value="" disabled selected>-- Loading Movies --</option>
+                            </select>
+                        </div>
+                        <div class="input-group hidden" id="admin-title-input-group">
+                            <input type="text" id="admin-title-input" placeholder=" ">
+                            <label>Enter New Movie Title</label>
                         </div>
                         
                         <div class="input-group select-group">
