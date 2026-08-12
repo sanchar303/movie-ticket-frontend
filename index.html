@@ -202,6 +202,18 @@
         </div>
     </div>
 
+    <!-- CUSTOM CONFIRMATION MODAL -->
+    <div id="confirm-modal" class="modal-overlay hidden">
+        <div class="modal-box glass-panel 3d-box">
+            <h3 style="color: var(--danger); margin-bottom: 10px;">⚠️ Warning</h3>
+            <p id="confirm-message" style="margin-bottom: 25px; font-size: 0.95rem; color: #ddd; font-weight: 600;"></p>
+            <div class="modal-actions">
+                <div class="custom-btn danger-btn" id="confirm-yes-btn">Delete</div>
+                <div class="custom-btn action-btn" onclick="closeConfirmModal()">Cancel</div>
+            </div>
+        </div>
+    </div>
+
     <!-- QR CODE MODAL -->
     <div id="qr-modal" class="modal-overlay hidden">
         <div class="modal-box glass-panel 3d-box">
@@ -213,7 +225,7 @@
             </div>
             <div class="modal-actions">
                 <div class="custom-btn action-btn" onclick="downloadQR()">Download</div>
-                <div class="custom-btn danger-btn" onclick="closeQRModal()">Close</div>
+                <div class="custom-btn action-btn" style="background: linear-gradient(135deg, #757575, #424242);" onclick="closeQRModal()">Close</div>
             </div>
         </div>
     </div>
