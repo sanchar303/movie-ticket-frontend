@@ -1,6 +1,6 @@
 let currentUser = null;
 let allMoviesData = [];
-const API_BASE = "https://movie-ticket-api-v2.onrender.com"; // UPDATE THIS
+const API_BASE = "https://movie-ticket-api-v2.onrender.com"; // Permanently locked in
 
 // PERSISTENCE CHECK & SECURITY
 document.addEventListener("DOMContentLoaded", () => {
@@ -124,7 +124,6 @@ function updateAdminTimings() {
     } else if (loc === "Kalimati Trade Center, Kalimati") {
         times = ["10:00 AM", "12:30 PM", "03:00 PM", "05:45 PM", "08:30 PM"];
     } else {
-        // QFX offset timings
         times = ["08:30 AM", "11:15 AM", "01:30 PM", "04:15 PM", "06:45 PM", "09:00 PM"];
     }
     document.getElementById('admin-time').innerHTML = times.map(t => `<option>${t}</option>`).join('');
@@ -171,10 +170,22 @@ document.getElementById('admin-validate-form').addEventListener('submit', async 
 async function loadAppMovies() {
     showLoader();
     try {
-        const res = await fetch(`${API_BASE}/api/movies`); const data = await res.json(); allMoviesData = Object.values(data || {});
+        const res = await fetch(`${API_BASE}/api/movies`); 
+        const data = await res.json(); 
+        allMoviesData = Object.values(data || {});
         const uniqueTitles = [...new Set(allMoviesData.map(m => m.title))];
-        document.getElementById('user-movie').innerHTML = uniqueTitles.length ? uniqueTitles.map(t => `<option>${t}</option>`).join('') : '<option disabled>No movies available</option>';
-        updateUserLocs();
+        
+        let html = '<option value="" disabled selected>-- Select a Movie --</option>';
+        if(uniqueTitles.length) {
+            html += uniqueTitles.map(t => `<option value="${t}">${t}</option>`).join('');
+        } else {
+            html = '<option value="" disabled selected>No movies available</option>';
+        }
+        document.getElementById('user-movie').innerHTML = html;
+        document.getElementById('user-loc').innerHTML = '<option value="" disabled selected>--</option>';
+        document.getElementById('user-time').innerHTML = '<option value="" disabled selected>--</option>';
+        
+        updatePriceDisplay();
     } catch(e) { showToast("Failed to load movies", true); }
     hideLoader();
 }
@@ -182,21 +193,60 @@ async function loadAppMovies() {
 function updateUserLocs() {
     const title = document.getElementById('user-movie').value;
     const uniqueLocs = [...new Set(allMoviesData.filter(m => m.title === title).map(m => `${m.hall} - ${m.location}`))];
-    document.getElementById('user-loc').innerHTML = uniqueLocs.map(l => `<option>${l}</option>`).join(''); updateUserTimes();
+    
+    let html = '<option value="" disabled selected>-- Select Location --</option>';
+    html += uniqueLocs.map(l => `<option value="${l}">${l}</option>`).join('');
+    
+    document.getElementById('user-loc').innerHTML = html; 
+    document.getElementById('user-time').innerHTML = '<option value="" disabled selected>--</option>';
+    updatePriceDisplay();
 }
 
 function updateUserTimes() {
     const title = document.getElementById('user-movie').value; const loc = document.getElementById('user-loc').value;
-    document.getElementById('user-time').innerHTML = allMoviesData.filter(m => m.title === title && `${m.hall} - ${m.location}` === loc).map(m => `<option>${m.time}</option>`).join('');
+    let html = '<option value="" disabled selected>-- Select Time --</option>';
+    html += allMoviesData.filter(m => m.title === title && `${m.hall} - ${m.location}` === loc).map(m => `<option value="${m.time}">${m.time}</option>`).join('');
+    document.getElementById('user-time').innerHTML = html;
     updatePriceDisplay();
 }
 
 function getSelectedMovie() { return allMoviesData.find(m => m.title === document.getElementById('user-movie').value && `${m.hall} - ${m.location}` === document.getElementById('user-loc').value && m.time === document.getElementById('user-time').value); }
 
 function updatePriceDisplay() {
-    const m = getSelectedMovie(); if (!m) return;
-    document.getElementById('display-price').textContent = `Price: Rs. ${m.cost}`; document.getElementById('display-seats').textContent = `Seats: ${m.seats}`;
-    document.getElementById('display-total').textContent = `Total: Rs. ${m.cost * (parseInt(document.getElementById('user-tickets').value) || 1)}`;
+    const m = getSelectedMovie(); 
+    const tix = parseInt(document.getElementById('user-tickets').value) || 0;
+    
+    if (!m) {
+        document.getElementById('display-price').textContent = `Price: Rs. 0`; 
+        document.getElementById('display-seats').textContent = `Available: 0`;
+        document.getElementById('display-total').textContent = `Total: Rs. 0`;
+    } else {
+        document.getElementById('display-price').textContent = `Price: Rs. ${m.cost}`; 
+        document.getElementById('display-seats').textContent = `Available: ${m.seats}`;
+        document.getElementById('display-total').textContent = `Total: Rs. ${m.cost * tix}`;
+    }
+    checkBookingForm();
+}
+
+function checkBookingForm() {
+    const movie = document.getElementById('user-movie').value;
+    const loc = document.getElementById('user-loc').value;
+    const time = document.getElementById('user-time').value;
+    const tix = parseInt(document.getElementById('user-tickets').value) || 0;
+    const btn = document.getElementById('book-ticket-btn');
+    const m = getSelectedMovie();
+
+    if (!movie || !loc || !time || tix < 1) {
+        btn.disabled = true; btn.classList.add('disabled-btn');
+        return;
+    }
+    if (m && tix > m.seats) {
+        btn.disabled = true; btn.classList.add('disabled-btn');
+        document.getElementById('display-seats').style.color = 'var(--danger)';
+    } else {
+        btn.disabled = false; btn.classList.remove('disabled-btn');
+        document.getElementById('display-seats').style.color = '#fff';
+    }
 }
 
 document.getElementById('user-book-form').addEventListener('submit', async (e) => {
@@ -207,12 +257,14 @@ document.getElementById('user-book-form').addEventListener('submit', async (e) =
     
     try {
         const res = await fetch(`${API_BASE}/api/bookings?email=${currentUser.email}`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(booking) });
+        if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
         
         showToast("Ticket Confirmed & Processed!"); 
-        loadUserBookings();
+        loadAppMovies(); // Refresh seat counts live
+        loadUserBookings(); // Refresh UI
         generateAndShowQR(data.ticketCode);
-    } catch(err) { showToast("Booking failed.", true); }
+    } catch(err) { showToast(err.message || "Booking failed.", true); }
     hideLoader();
 });
 
@@ -227,9 +279,27 @@ async function loadUserBookings() {
                     <p>📍 ${b.location}</p>
                     <p>🎫 ${b.tickets} Tickets | <strong>Rs. ${b.total_cost}</strong></p>
                 </div>
-                ${b.status !== 'Used' ? `<div class="custom-btn action-btn slim" onclick="generateAndShowQR('${b.ticketCode}')">View QR</div>` : ''}
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                    ${b.status !== 'Used' ? `<div class="custom-btn action-btn slim" onclick="generateAndShowQR('${b.ticketCode}')">View QR</div>` : ''}
+                    <div class="custom-btn danger-btn slim" style="padding: 4px 10px; font-size: 0.7rem;" onclick="deleteTicket('${b.ticketCode}')">Delete</div>
+                </div>
             </div>`).join('') : "<p style='color:#888; text-align:center;'>Vault is empty.</p>";
     } catch(e) {}
+}
+
+async function deleteTicket(code) {
+    if(!confirm("Erase ticket permanently? This cannot be undone.")) return;
+    showLoader();
+    try {
+        const res = await fetch(`${API_BASE}/api/bookings?email=${currentUser.email}&code=${code}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error(await res.text());
+        showToast("Ticket permanently deleted.");
+        loadAppMovies(); 
+        loadUserBookings(); 
+    } catch (err) {
+        showToast("Failed to delete ticket.", true);
+    }
+    hideLoader();
 }
 
 // ================= QR CODE & CANVAS LOGIC =================
@@ -265,33 +335,27 @@ async function downloadQR() {
 
     showToast("Processing Image...");
 
-    // Create a canvas to draw the QR code AND the text beneath it
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     
-    // Canvas dimensions (300x300 image + 60px for text)
     canvas.width = 300;
     canvas.height = 360;
 
-    // Fill white background so it looks exactly like the website preview
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw the QR Code image
     const img = new Image();
     img.crossOrigin = "Anonymous";
     
     img.onload = () => {
         ctx.drawImage(img, 0, 0, 300, 300);
 
-        // Draw the text exactly as it looks in the app
         ctx.fillStyle = "#000000";
         ctx.font = "bold 32px sans-serif";
         ctx.textAlign = "center";
         ctx.letterSpacing = "3px";
         ctx.fillText(codeText, 150, 340);
 
-        // Trigger Download
         const link = document.createElement('a');
         link.download = `TicketBox_QR_${codeText}.png`;
         link.href = canvas.toDataURL("image/png");
