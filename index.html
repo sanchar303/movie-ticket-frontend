@@ -37,26 +37,26 @@
                     <div class="tab-btn" id="tab-register" onclick="switchAuthTab('register')">Sign Up</div>
                 </div>
 
-                <form id="login-form" class="auth-form active">
+                <form id="login-form" class="auth-form active" autocomplete="off">
                     <div class="input-group">
-                        <input type="email" id="log-email" required placeholder=" ">
+                        <input type="email" id="log-email" required placeholder=" " autocomplete="new-password">
                         <label>Email Address</label>
                     </div>
                     <div class="input-group">
-                        <input type="password" id="log-pass" required placeholder=" ">
+                        <input type="password" id="log-pass" required placeholder=" " autocomplete="new-password">
                         <label>Password</label>
                     </div>
                     <button type="submit" class="custom-btn primary-btn">Secure Login</button>
                 </form>
 
-                <form id="register-form" class="auth-form">
+                <form id="register-form" class="auth-form" autocomplete="off">
                     <div class="input-group">
-                        <input type="email" id="reg-email" required placeholder=" ">
+                        <input type="email" id="reg-email" required placeholder=" " autocomplete="new-password">
                         <label>Email Address</label>
                         <span id="email-error" class="error-msg hidden">Invalid Email</span>
                     </div>
                     <div class="input-group">
-                        <input type="password" id="reg-pass" required placeholder=" ">
+                        <input type="password" id="reg-pass" required placeholder=" " autocomplete="new-password">
                         <label>Create Password</label>
                     </div>
                     
@@ -81,11 +81,11 @@
             </div>
 
             <div class="grid-layout">
+                <!-- Deployment Editor -->
                 <div class="glass-panel 3d-box p-20">
-                    <h3>🎬 Publish Show</h3>
+                    <h3 id="admin-form-title">🎬 Publish Show</h3>
                     <form id="admin-form">
                         
-                        <!-- NEW SMART ADMIN DROPDOWN UI -->
                         <div class="input-group select-group">
                             <select id="admin-title-select" onchange="toggleNewMovieInput()" required>
                                 <option value="" disabled selected>-- Loading Movies --</option>
@@ -121,19 +121,28 @@
                                 <label>Ticket Price (Rs)</label>
                             </div>
                         </div>
-                        <button type="submit" class="custom-btn primary-btn">Deploy Movie</button>
+                        <button type="submit" id="admin-submit-btn" class="custom-btn primary-btn">Deploy Movie</button>
+                        <button type="button" id="admin-cancel-btn" class="custom-btn danger-btn hidden" style="margin-top:10px;" onclick="resetAdminForm()">Cancel Edit</button>
                     </form>
                 </div>
 
-                <div class="glass-panel 3d-box p-20">
-                    <h3>✅ Scanner Terminal</h3>
-                    <form id="admin-validate-form">
-                        <div class="input-group">
-                            <input type="text" id="admin-ticket-code" required placeholder=" " maxlength="6" style="text-transform:uppercase;">
-                            <label>Enter 6-Digit Code</label>
-                        </div>
-                        <button type="submit" class="custom-btn action-btn">Verify Ticket</button>
-                    </form>
+                <!-- Scanner & Active Deployments -->
+                <div style="display:flex; flex-direction:column; gap:20px;">
+                    <div class="glass-panel 3d-box p-20">
+                        <h3>✅ Scanner Terminal</h3>
+                        <form id="admin-validate-form">
+                            <div class="input-group">
+                                <input type="text" id="admin-ticket-code" required placeholder=" " maxlength="6" style="text-transform:uppercase;">
+                                <label>Enter 6-Digit Code</label>
+                            </div>
+                            <button type="submit" class="custom-btn action-btn">Verify Ticket</button>
+                        </form>
+                    </div>
+
+                    <div class="glass-panel 3d-box p-20" style="display:flex; flex-direction:column; flex:1;">
+                        <h3>📡 Active Deployments</h3>
+                        <div id="admin-movies-list" class="bookings-scroll"></div>
+                    </div>
                 </div>
             </div>
         </div>
