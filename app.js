@@ -1,9 +1,10 @@
 let currentUser = null;
-let allMoviesData = [];
-const API_BASE = "https://movie-ticket-api-v2.onrender.com"; // Permanently locked in
+let allMoviesData = {}; 
+const API_BASE = "https://movie-ticket-api-v2.onrender.com"; // Locked
 
 // PERSISTENCE CHECK & SECURITY
 document.addEventListener("DOMContentLoaded", () => {
+    clearAuthForms(); // Force inputs to empty on load
     const savedSession = localStorage.getItem('movieAppUser');
     if (savedSession) {
         currentUser = JSON.parse(savedSession);
@@ -19,7 +20,7 @@ function showToast(msg, isErr = false) {
     const container = document.getElementById('toast-container');
     container.innerHTML = ''; // Enforce strict single toast
     const t = document.createElement('div');
-    t.className = `toast glass-panel ${isErr ? 'error' : ''}`;
+    t.className = `toast ${isErr ? 'error' : ''}`;
     t.textContent = msg;
     container.appendChild(t);
     setTimeout(() => {
@@ -28,11 +29,21 @@ function showToast(msg, isErr = false) {
     }, 3000);
 }
 
+function clearAuthForms() {
+    document.getElementById('log-email').value = '';
+    document.getElementById('log-pass').value = '';
+    document.getElementById('reg-email').value = '';
+    document.getElementById('reg-pass').value = '';
+    document.querySelectorAll('.rule-item').forEach(el => el.classList.remove('valid', 'invalid'));
+    hasAttemptedSubmit = false;
+}
+
 function switchView(id) { 
     document.querySelectorAll('.view-container').forEach(el => el.classList.remove('active')); 
     document.getElementById(id).classList.add('active'); 
 }
 function switchAuthTab(t) {
+    clearAuthForms(); // Force inputs to empty on tab switch
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); 
     document.getElementById(`tab-${t}`).classList.add('active');
     document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active')); 
@@ -44,6 +55,7 @@ function routeToDashboard() {
     if (currentUser.role === 'admin') {
         updateAdminLocs();
         loadAdminMoviesDropdown();
+        loadAdminDeployments();
         switchView('admin-view');
     } else {
         loadAppMovies();
@@ -62,7 +74,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
         if (!res.ok) throw new Error(await res.text());
         currentUser = await res.json();
         localStorage.setItem('movieAppUser', JSON.stringify(currentUser)); 
-        document.getElementById('log-email').value = ''; document.getElementById('log-pass').value = '';
+        clearAuthForms();
         showToast(`Welcome to TicketBox, ${currentUser.role}!`);
         routeToDashboard();
     } catch (err) { showToast(err.message, true); }
@@ -71,7 +83,9 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
 
 function logout() {
     currentUser = null; localStorage.removeItem('movieAppUser');
-    showToast("Logged out successfully."); switchView('auth-view');
+    clearAuthForms();
+    showToast("Logged out successfully."); 
+    switchView('auth-view');
 }
 
 // ================= REGISTRATION & PASSWORD UI =================
@@ -130,18 +144,13 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
         const res = await fetch(`${API_BASE}/api/register`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ email: regEmail.value, password: regPass.value }) });
         if (!res.ok) throw new Error(await res.text());
         showToast("Account Created! Please Sign in."); 
-        
-        regEmail.value = ''; 
-        regPass.value = ''; 
-        hasAttemptedSubmit = false;
-        document.querySelectorAll('.rule-item').forEach(el => el.classList.remove('valid', 'invalid'));
-        
         switchAuthTab('login');
     } catch (err) { showToast(err.message, true); }
     hideLoader();
 });
 
 // ================= ADMIN LOGIC & SMART DROPDOWN =================
+let editingMovieId = null;
 const qLocs = ["Labim Mall", "Bhatbhateni, Radhe Radhe", "Civil Mall", "City Center"]; 
 const oLocs = ["Eyeplex Mall, Baneshwor", "Kalimati Trade Center, Kalimati"];
 
@@ -168,16 +177,16 @@ function updateAdminTimings() {
 async function loadAdminMoviesDropdown() {
     try {
         const res = await fetch(`${API_BASE}/api/movies`); 
-        const data = await res.json(); 
-        const allData = Object.values(data || {});
-        const uniqueTitles = [...new Set(allData.map(m => m.title))];
+        allMoviesData = await res.json() || {}; 
+        const moviesArr = Object.values(allMoviesData);
+        const uniqueTitles = [...new Set(moviesArr.map(m => m.title))];
         
         let html = '<option value="" disabled selected>-- Select a Movie --</option>';
         html += uniqueTitles.map(t => `<option value="${t}">${t}</option>`).join('');
         html += '<option value="__NEW__" style="color:var(--primary); font-weight:bold;">➕ Add New Movie...</option>';
         
         document.getElementById('admin-title-select').innerHTML = html;
-        toggleNewMovieInput(); // Reset view
+        toggleNewMovieInput(); 
     } catch(e) {}
 }
 
@@ -197,11 +206,85 @@ function toggleNewMovieInput() {
     }
 }
 
+// --- ADMIN EDIT / DELETE ---
+async function loadAdminDeployments() {
+    const res = await fetch(`${API_BASE}/api/movies`);
+    allMoviesData = await res.json() || {};
+    const list = document.getElementById('admin-movies-list');
+    
+    list.innerHTML = Object.keys(allMoviesData).length ? Object.entries(allMoviesData).reverse().map(([id, m]) => `
+        <div class="receipt-item">
+            <div class="receipt-details">
+                <h4>${m.title}</h4>
+                <p>🕒 ${m.time} | 📍 ${m.hall} - ${m.location}</p>
+                <p>💺 Seats: ${m.seats} | 💰 Rs. ${m.cost}</p>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+                <div class="custom-btn action-btn slim" onclick="editMovie('${id}')">Edit</div>
+                <div class="custom-btn danger-btn slim" onclick="deleteMovie('${id}')">Delete</div>
+            </div>
+        </div>`).join('') : "<p style='color:#888; text-align:center;'>No active deployments.</p>";
+}
+
+function editMovie(id) {
+    const m = allMoviesData[id];
+    if(!m) return;
+    editingMovieId = id;
+    
+    document.getElementById('admin-form-title').innerHTML = "✏️ Edit Deployment";
+    document.getElementById('admin-title-select').value = '__NEW__';
+    toggleNewMovieInput();
+    document.getElementById('admin-title-input').value = m.title;
+    document.getElementById('admin-hall').value = m.hall;
+    updateAdminLocs();
+    document.getElementById('admin-loc').value = m.location;
+    updateAdminTimings();
+    document.getElementById('admin-time').value = m.time;
+    document.getElementById('admin-seats').value = m.seats;
+    document.getElementById('admin-cost').value = m.cost;
+    
+    const submitBtn = document.getElementById('admin-submit-btn');
+    submitBtn.textContent = "Update Movie";
+    submitBtn.classList.remove('primary-btn');
+    submitBtn.classList.add('action-btn');
+    
+    document.getElementById('admin-cancel-btn').classList.remove('hidden');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function resetAdminForm() {
+    editingMovieId = null;
+    document.getElementById('admin-form-title').innerHTML = "🎬 Publish Show";
+    document.getElementById('admin-form').reset();
+    toggleNewMovieInput();
+    updateAdminLocs();
+    
+    const submitBtn = document.getElementById('admin-submit-btn');
+    submitBtn.textContent = "Deploy Movie";
+    submitBtn.classList.add('primary-btn');
+    submitBtn.classList.remove('action-btn');
+    
+    document.getElementById('admin-cancel-btn').classList.add('hidden');
+}
+
+async function deleteMovie(id) {
+    if(!confirm("Erase this deployment permanently? All seats and timings will be wiped.")) return;
+    showLoader();
+    try {
+        const res = await fetch(`${API_BASE}/api/movies?id=${id}`, { method: 'DELETE' });
+        if(!res.ok) throw new Error(await res.text());
+        showToast("Deployment deleted.");
+        resetAdminForm();
+        loadAdminMoviesDropdown();
+        loadAdminDeployments();
+    } catch(e) { showToast("Failed to delete", true); }
+    hideLoader();
+}
+
 document.getElementById('admin-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     showLoader();
     
-    // Determine which title to use
     const selectVal = document.getElementById('admin-title-select').value;
     const finalTitle = selectVal === '__NEW__' ? document.getElementById('admin-title-input').value : selectVal;
     
@@ -215,10 +298,16 @@ document.getElementById('admin-form').addEventListener('submit', async (e) => {
     };
     
     try {
-        await fetch(`${API_BASE}/api/movies`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(m) });
-        showToast("Movie Deployed to Box Office!"); 
-        document.getElementById('admin-title-input').value = '';
-        loadAdminMoviesDropdown(); // refresh list
+        if(editingMovieId) {
+            await fetch(`${API_BASE}/api/movies?id=${editingMovieId}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(m) });
+            showToast("Movie Updated Successfully!"); 
+        } else {
+            await fetch(`${API_BASE}/api/movies`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(m) });
+            showToast("Movie Deployed to Box Office!"); 
+        }
+        resetAdminForm();
+        loadAdminMoviesDropdown();
+        loadAdminDeployments();
     } catch(err) { showToast("Deployment failed.", true); }
     hideLoader();
 });
@@ -242,9 +331,9 @@ async function loadAppMovies() {
     showLoader();
     try {
         const res = await fetch(`${API_BASE}/api/movies`); 
-        const data = await res.json(); 
-        allMoviesData = Object.values(data || {});
-        const uniqueTitles = [...new Set(allMoviesData.map(m => m.title))];
+        allMoviesData = await res.json() || {}; 
+        const moviesArr = Object.values(allMoviesData);
+        const uniqueTitles = [...new Set(moviesArr.map(m => m.title))];
         
         let html = '<option value="" disabled selected>-- Select a Movie --</option>';
         if(uniqueTitles.length) {
@@ -263,7 +352,8 @@ async function loadAppMovies() {
 
 function updateUserLocs() {
     const title = document.getElementById('user-movie').value;
-    const uniqueLocs = [...new Set(allMoviesData.filter(m => m.title === title).map(m => `${m.hall} - ${m.location}`))];
+    const moviesArr = Object.values(allMoviesData);
+    const uniqueLocs = [...new Set(moviesArr.filter(m => m.title === title).map(m => `${m.hall} - ${m.location}`))];
     
     let html = '<option value="" disabled selected>-- Select Location --</option>';
     html += uniqueLocs.map(l => `<option value="${l}">${l}</option>`).join('');
@@ -274,14 +364,20 @@ function updateUserLocs() {
 }
 
 function updateUserTimes() {
-    const title = document.getElementById('user-movie').value; const loc = document.getElementById('user-loc').value;
+    const title = document.getElementById('user-movie').value; 
+    const loc = document.getElementById('user-loc').value;
+    const moviesArr = Object.values(allMoviesData);
+    
     let html = '<option value="" disabled selected>-- Select Time --</option>';
-    html += allMoviesData.filter(m => m.title === title && `${m.hall} - ${m.location}` === loc).map(m => `<option value="${m.time}">${m.time}</option>`).join('');
+    html += moviesArr.filter(m => m.title === title && `${m.hall} - ${m.location}` === loc).map(m => `<option value="${m.time}">${m.time}</option>`).join('');
     document.getElementById('user-time').innerHTML = html;
     updatePriceDisplay();
 }
 
-function getSelectedMovie() { return allMoviesData.find(m => m.title === document.getElementById('user-movie').value && `${m.hall} - ${m.location}` === document.getElementById('user-loc').value && m.time === document.getElementById('user-time').value); }
+function getSelectedMovie() { 
+    const moviesArr = Object.values(allMoviesData);
+    return moviesArr.find(m => m.title === document.getElementById('user-movie').value && `${m.hall} - ${m.location}` === document.getElementById('user-loc').value && m.time === document.getElementById('user-time').value); 
+}
 
 function updatePriceDisplay() {
     const m = getSelectedMovie(); 
@@ -332,8 +428,8 @@ document.getElementById('user-book-form').addEventListener('submit', async (e) =
         const data = await res.json();
         
         showToast("Ticket Confirmed & Processed!"); 
-        loadAppMovies(); // Refresh seat counts live
-        loadUserBookings(); // Refresh UI
+        loadAppMovies(); 
+        loadUserBookings(); 
         generateAndShowQR(data.ticketCode);
     } catch(err) { showToast(err.message || "Booking failed.", true); }
     hideLoader();
